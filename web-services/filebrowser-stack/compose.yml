@@ -1,0 +1,39 @@
+version: '3'
+services:
+  # MySQL database service
+  filebrowser:
+    container_name: filebrowser
+    hostname: filebrowser
+    image: ${FILEBROWSER_IMAGE}
+    ports:
+      - "${NGROK_WEB_EXPOSE_PORT}:9000"
+      - "${NGROK_API_EXPOSE_PORT}:9001"  
+
+    networks:
+      - filebrowser_net
+    restart: always
+    volumes:
+      - filebrowser_data_data:/data
+      - filebrowser_srv_data:/srv
+
+  ngrok:
+    image: ${NGROK_IMAGE}
+    container_name: ngrok
+    depends_on:
+      - filebrowser
+    networks:
+      - filebrowser_net
+    ports:
+      - "${NGROK_EXPOSE_PORT}:4040"  
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
+    command: tunnel --label edge=edghts_2nqCeuJwDus5GZh7j0TibJxspxH http://filebrowser:80
+    restart: always
+
+
+networks:
+  filebrowser_net:
+
+volumes:
+  filebrowser_data_data:
+  filebrowser_srv_data:

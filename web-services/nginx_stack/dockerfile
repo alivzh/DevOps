@@ -1,0 +1,30 @@
+# Base image: Ubuntu
+FROM ubuntu:latest
+
+# Install OpenSSH server, NGINX, sudo, and OpenSSL for SSL generation
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y openssh-server sudo nginx openssl iptables-persistent && \
+    mkdir /var/run/sshd
+
+# Set up user with sudo privileges
+RUN useradd -m alivegamer0099 && \
+    echo 'alivegamer0099:1234' | chpasswd && \
+    usermod -aG sudo alivegamer0099 && \
+    echo 'alivegamer0099 ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# Copy custom NGINX configuration and remove default
+RUN rm -rf /etc/nginx/sites-enabled/default
+COPY ./default /etc/nginx/sites-enabled/default
+
+# Copy startup script
+COPY ./start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
+# Expose necessary ports
+EXPOSE 22
+EXPOSE 443
+EXPOSE 80
+
+# Use the startup script as the entrypoint
+ENTRYPOINT ["/usr/local/bin/start.sh"]

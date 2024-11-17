@@ -1,0 +1,145 @@
+version: '3.8'
+
+networks:
+  app_net:
+    external: false
+    name: app_net
+
+volumes:
+  grafana_data:
+    name: grafana_data
+  prometheus_data:
+    name: prometheus_data
+  alertmanager_data:
+    name: alertmanager_data
+  pushgateway_data:
+    name: pushgateway_data
+  snmp_exporter_data:  # Adding a volume for SNMP Exporter, if needed
+    name: snmp_exporter_data
+
+services:
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    restart: ${RESTART_POLICY}
+    container_name: prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:$${PROMETHEUS_EXPOSE_PORT} | grep -q 'prometheus'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    ports:
+      - '${PROMETHEUS_EXPOSE_PORT}:9090'
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus:/etc/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=150GB
+      - --web.enable-lifecycle
+    networks:
+      - app_net
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    restart: ${RESTART_POLICY}
+    container_name: grafana
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:$${GRAFANA_EXPOSE_PORT} | grep -q 'grafana'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    ports:
+      - '${GRAFANA_EXPOSE_PORT}:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/:/etc/grafana/provisioning/
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=${GRAFANA_INSTALL_PLUGINS}
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_PATHS_DATA=/var/lib/grafana
+    networks:
+      - app_net
+
+  alertmanager:
+    image: prom/alertmanager:${ALERTMANAGER_VERSION}
+    restart: ${RESTART_POLICY}
+    container_name: alertmanager
+    ports:
+      - '${ALERTMANAGER_EXPOSE_PORT}:9093'
+    volumes:
+      - alertmanager_data:/alertmanager
+      - ./alertmanager:/etc/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    networks:
+      - app_net
+
+  pushgateway:
+    image: prom/pushgateway:${PUSHGATEWAY_VERSION}
+    restart: ${RESTART_POLICY}
+    container_name: pushgateway
+    ports:
+      - '${PUSHGATEWAY_EXPOSE_PORT}:9091'
+    command:
+      - --persistence.file=/tmp/pushgateway.store
+      - --persistence.interval=1m
+    volumes:
+      - pushgateway_data:/tmp/
+    networks:
+      - app_net
+
+  cadvisor:
+    image: google/cadvisor:${CADVISOR_VERSION}
+    command: --disable_metrics=disk,udp,percpu
+    restart: ${RESTART_POLICY}
+    hostname: '${HOSTNAME}'
+    container_name: cadvisor
+    ports:
+      - '${CADVISOR_EXPOSE_PORT}:8080'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - app_net
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:${BLACKBOXEXPORTER_VERSION}
+    restart: ${RESTART_POLICY}
+    hostname: '${HOSTNAME}'
+    container_name: blackbox-exporter
+    ports:
+      - '${BLACKBOXEXPORTER_EXPOSE_PORT}:9115'
+    command:
+      - '--config.file=/etc/blackboxexporter/blackbox-exporter.yml'
+    volumes:
+      - ./blackbox:/etc/blackboxexporter
+    networks:
+      - app_net
+
+  node-exporter:
+    image: prom/node-exporter:${NODEEXPORTER_VERSION}
+    restart: ${RESTART_POLICY}
+    hostname: '${HOSTNAME}'
+    container_name: node-exporter
+    ports:
+      - '${NODEEXPORTER_EXPOSE_PORT}:9100'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    networks:
+      - app_net
