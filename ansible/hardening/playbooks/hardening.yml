@@ -1,7 +1,9 @@
+---
 - name: hardening
   hosts: all
   become: true
   gather_facts: true
   roles:
+    - ../roles/firewall_hardening 
     - ../roles/ssh_hardening
     - ../roles/os_hardening
