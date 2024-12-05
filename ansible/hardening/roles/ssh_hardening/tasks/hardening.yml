@@ -77,6 +77,20 @@
   notify: Restart sshd
   when: ssh_server_hardening | bool
 
+- name: Copy ssh banner file multiple destination
+  copy:
+    src: issue
+    dest: "{{ item }}"
+    mode: "0600"
+    owner: "{{ ssh_owner }}"
+    group: "{{ ssh_group }}"
+  with_items:
+    - /etc/issue
+    - /etc/issue.net
+    - "{{ ssh_banner_path }}"
+  notify: Restart sshd
+  when: ssh_server_hardening | bool
+
 - name: Disable dynamic MOTD
   community.general.pamd:
     name: sshd
